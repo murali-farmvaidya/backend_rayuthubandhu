@@ -42,3 +42,4 @@ pytz==2024.1
 
 # Migrations
 alembic==1.13.1
+email-validator
