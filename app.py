@@ -94,14 +94,17 @@ elif DATABASE_URL.startswith("postgresql+psycopg2://"):
 
 app = FastAPI(title="Main System with AWS S3 & Metadata Fix (Final)")
 
-origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origin_regex=".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.options("/{path:path}")
+async def preflight_handler(path: str):
+    return JSONResponse(status_code=200)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer()
@@ -630,9 +633,45 @@ class RegisterIn(BaseModel):
 
 class TokenRequest(BaseModel):
     token: str
+
 class AssignTasksIn(BaseModel):
     user_id: int
     limit: int|None=None
+
+class CorrectTaskIn(BaseModel):
+    user_id: int
+    base: str
+    gender: Optional[str] = None
+    age: Optional[str] = None
+    dialect: Optional[str] = None
+    mode: Optional[str] = None
+
+class EditTaskIn(BaseModel):
+    user_id: int
+    base: str
+    edited_text: str
+    gender: Optional[str] = None
+    age: Optional[str] = None
+    dialect: Optional[str] = None
+    mode: Optional[str] = None
+
+class IncorrectTaskIn(BaseModel):
+    user_id: int
+    base: str
+    gender: Optional[str] = None
+    age: Optional[str] = None
+    dialect: Optional[str] = None
+    mode: Optional[str] = None
+
+class SaveProgressIn(BaseModel):
+    user_id: int
+    score: int
+    current: int
+    force_submit: bool = False
+
+class AdminLoginIn(BaseModel):
+    email: str
+    password: str
 # =========================
 # Endpoints
 # =========================
@@ -811,14 +850,15 @@ async def _next_task(user_id: int, db: AsyncSession):
 # -----------------------
 @app.post("/correct")
 async def mark_correct(
-    user_id: int = Form(...),
-    base: str = Form(...),
-    gender: Optional[str] = Form(None),
-    age: Optional[str] = Form(None),
-    dialect: Optional[str] = Form(None),
-    mode: Optional[str] = Form(None),
+    data: CorrectTaskIn,
     db: AsyncSession = Depends(get_db)
 ):
+    user_id = data.user_id
+    base = data.base
+    gender = data.gender
+    age = data.age
+    dialect = data.dialect
+    mode = data.mode
     res = await db.execute(select(FileAssignment).filter(FileAssignment.user_id == user_id, FileAssignment.base == base))
     task = res.scalars().first()
     if not task:
@@ -856,15 +896,16 @@ async def mark_correct(
 # -----------------------
 @app.post("/edit")
 async def mark_edit(
-    user_id: int = Form(...),
-    base: str = Form(...),
-    edited_text: str = Form(...),
-    gender: Optional[str] = Form(None),
-    age: Optional[str] = Form(None),
-    dialect: Optional[str] = Form(None),
-    mode: Optional[str] = Form(None),
+    data: EditTaskIn,
     db: AsyncSession = Depends(get_db)
 ):
+    user_id = data.user_id
+    base = data.base
+    edited_text = data.edited_text
+    gender = data.gender
+    age = data.age
+    dialect = data.dialect
+    mode = data.mode
     res = await db.execute(select(FileAssignment).filter(FileAssignment.user_id == user_id, FileAssignment.base == base))
     task = res.scalars().first()
     if not task:
@@ -906,14 +947,15 @@ async def mark_edit(
 # -----------------------
 @app.post("/incorrect")
 async def mark_incorrect(
-    user_id: int = Form(...),
-    base: str = Form(...),
-    gender: Optional[str] = Form(None),
-    age: Optional[str] = Form(None),
-    dialect: Optional[str] = Form(None),
-    mode: Optional[str] = Form(None),
+    data: IncorrectTaskIn,
     db: AsyncSession = Depends(get_db)
 ):
+    user_id = data.user_id
+    base = data.base
+    gender = data.gender
+    age = data.age
+    dialect = data.dialect
+    mode = data.mode
     res = await db.execute(select(FileAssignment).filter(FileAssignment.user_id == user_id, FileAssignment.base == base))
     task = res.scalars().first()
     if not task:
@@ -954,12 +996,13 @@ async def mark_incorrect(
 # -----------------------
 @app.post("/save_progress")
 async def save_progress(
-    user_id: int = Form(...),
-    score: int = Form(...),
-    current: int = Form(...),
-    force_submit: bool = Form(False),
+    data: SaveProgressIn,
     db: AsyncSession = Depends(get_db)
 ):
+    user_id = data.user_id
+    score = data.score
+    current = data.current
+    force_submit = data.force_submit
     res = await db.execute(select(User).filter(User.id == user_id))
     user = res.scalars().first()
     if not user:
@@ -985,7 +1028,9 @@ async def save_progress(
 # Admin endpoints
 # -----------------------
 @app.post("/admin/login")
-async def admin_login(email: str = Form(...), password: str = Form(...)):
+async def admin_login(data: AdminLoginIn):
+    email = data.email
+    password = data.password
     if email == ADMIN_EMAIL and password == ADMIN_PASSWORD:
         token = create_token({"id": 0, "email": email, "is_admin": True})
         return {"access_token": token, "token_type": "bearer"}
