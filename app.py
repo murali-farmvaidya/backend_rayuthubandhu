@@ -128,11 +128,6 @@ async def get_db():
     async with AsyncSessionLocal() as session:
         yield session
 
-@app.on_event("startup")
-async def startup():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
 
 class User(Base):
     __tablename__ = "users"
