@@ -103,8 +103,8 @@ app.add_middleware(
 )
 
 @app.options("/{path:path}")
-async def preflight_handler(path: str):
-    return JSONResponse(status_code=200)
+async def preflight_handler():
+    return JSONResponse(content={}, status_code=200)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer()
